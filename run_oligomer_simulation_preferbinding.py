@@ -330,7 +330,7 @@ def main_simulation(energy_repulsion,energy_attraction):
     simulation.reporters.append(DCDReporter('seg.dcd', 5000,enforcePeriodicBox=False))
     simulation.reporters.append(StateDataReporter('seg.csv', 5000, step=True, kineticEnergy=True, potentialEnergy=True, totalEnergy=True, temperature=True))
     #run the simulation for however many time steps
-    simulation.step(10000)
+    simulation.step(100000)
     #save final state as xml which can be used for restarting the simulation
     simulation.saveState('seg.xml')
     finalpositions = simulation.context.getState(getPositions=True).getPositions()

@@ -230,7 +230,7 @@ def main_simulation(energy_repulsion,energy_attraction,iter_number):
     simulation.reporters.append(CheckpointReporter(f'{energy_attraction}/{iter_number}/checkpnt_new.chk', 5000))
     print("HERE")
     #run the simulation for however many time steps
-    simulation.step(500000000)
+    simulation.step(100000)
     #simulation.step(50000)
     simulation.saveState(f'{energy_attraction}/{iter_number}/final.xml')
     #finalpositions = simuflation.context.getState(getPositions=True).getPositions()

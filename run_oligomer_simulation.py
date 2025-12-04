@@ -109,13 +109,33 @@ class MDsteps():
         for i in range(num_particles):
             force_repulsion.addParticle()
         system.addForce(force_repulsion)
-    
+    def tabulated_cosine(self,system,energy_repulsion):
+        r_cut = 1.5 * nanometer
+        # constant factor in your original formula
+        E0 = 0.1184 * kilojoule / mole
+        scale = energy_repulsion * E0
+
+        n_points = 2000
+        xs = np.linspace(0, r_cut/nanometer, n_points)
+        table_vals = 1.0 + np.cos(np.pi * xs / xs[-1])  # xs[-1] = r_cut
+        tab = Continuous1DFunction(table_vals, 0.0, xs[-1])
+        expr = "energy_scale * rep(r)"
+        force = CustomNonbondedForce(expr)
+        force.addGlobalParameter("energy_scale", scale)
+        force.addTabulatedFunction("rep", tab)
+        force.setNonbondedMethod(CustomNonbondedForce.CutoffNonPeriodic)
+        force.setCutoffDistance(r_cut)
+        # Add empty per-particle parameters
+        for _ in range(system.getNumParticles()):
+            force.addParticle([])
+        system.addForce(force)
+
     def add_gaussian_nativec(self,system,energy_attraction,u,ubound):
         #key native contacts fron all-atom simulations
         ## TODO: fine tune A,B,C,D with all-atom simulation data
         r_cutoff_g=3.0*nanometer
-        expr_gaussian_native_contacts="-Eatt*(A*exp(-B*r^2)+C*exp(-D*r^2))*step(r_ncg-r)"
-        force_native_contacts=openmm.CustomNonbondedForce(expr_gaussian_native_contacts)
+        expr_gaussian_native_contacts="-Eatt*(A*exp(-B*r^2)+C*exp(-D*r^2))"
+        force_native_contacts=openmm.CustomBondForce(expr_gaussian_native_contacts)
         force_native_contacts.addGlobalParameter("Eatt",energy_attraction)
         force_native_contacts.addGlobalParameter("A",4.6*kilojoule/mole)
         force_native_contacts.addGlobalParameter("B",10.0/(nanometer**2))
@@ -123,8 +143,8 @@ class MDsteps():
         force_native_contacts.addGlobalParameter("D",1.0/(nanometer**2))
         force_native_contacts.addGlobalParameter("r_ncg",r_cutoff_g)
     
-        force_native_contacts.setNonbondedMethod(openmm.NonbondedForce.CutoffNonPeriodic)
-        force_native_contacts.setCutoffDistance(r_cutoff_g)
+        #force_native_contacts.setNonbondedMethod(openmm.NonbondedForce.CutoffNonPeriodic)
+        #force_native_contacts.setCutoffDistance(r_cutoff_g)
         #Native contact pairs according to all-atom simulations
         ABCDpairs=[]
         #add native contacts for each interface: A site(AA interface), B site(BC interface), C site(CD interface), D site(DB interface)
@@ -137,13 +157,26 @@ class MDsteps():
         ABCDpairs=np.asarray(ABCDpairs)-1
         number_native_contacts=len(ABCDpairs)
         #add each contact as an interaction group
-        for i in range(number_native_contacts):
-            d1index=ABCDpairs[i][0]
-            d2index=ABCDpairs[i][1]
-            force_native_contacts.addInteractionGroup([d1index],[d2index])
-        num_particles=system.getNumParticles()
-        for i in range(num_particles):
-            force_native_contacts.addParticle()
+        r_cut = 3.0  # nm
+        filtered_pairs = []
+        for i, j in ABCDpairs:
+
+            pos1 =self.pdb.positions[i]/nanometer
+            pos2 =self.pdb.positions[j]/nanometer
+            if np.linalg.norm(pos1 - pos2) < r_cut:
+                filtered_pairs.append((i, j))
+
+        for i, j in filtered_pairs:
+            force_native_contacts.addBond(i, j, [])
+
+
+        #for i in range(number_native_contacts):
+        #    d1index=ABCDpairs[i][0]
+        #    d2index=ABCDpairs[i][1]
+        #    force_native_contacts.addBond(int(d1index),int(d2index),[])
+        #num_particles=system.getNumParticles()
+        #for i in range(num_particles):
+        #    force_native_contacts.addParticle()
         system.addForce(force_native_contacts)
     def gaussian_native_contactA(self,system,energy_attraction,u,ubound):
         r_cutoff_g=3.0*nanometer
@@ -301,12 +334,12 @@ def main_simulation(energy_repulsion,energy_attraction):
     system.removeForce(4)
     
     #add all the forces we want: repulsive,attractive, anything else
-    mdsteps.add_cosine_repulsion(system,energy_repulsion)
-    #mdsteps.add_gaussian_nativec(system,energy_attraction,u_system,ubound)
-    mdsteps.gaussian_native_contactA(system,energy_attraction,u_system,ubound)
-    mdsteps.gaussian_native_contactB(system,energy_attraction,u_system,ubound)
-    mdsteps.gaussian_native_contactC(system,energy_attraction,u_system,ubound)
-    mdsteps.gaussian_native_contactD(system,energy_attraction,u_system,ubound)    
+    mdsteps.tabulated_cosine(system,energy_repulsion)
+    mdsteps.add_gaussian_nativec(system,energy_attraction,u_system,ubound)
+    #mdsteps.gaussian_native_contactA(system,energy_attraction,u_system,ubound)
+    # mdsteps.gaussian_native_contactB(system,energy_attraction,u_system,ubound)
+    # mdsteps.gaussian_native_contactC(system,energy_attraction,u_system,ubound)
+    # mdsteps.gaussian_native_contactD(system,energy_attraction,u_system,ubound)    
     #define the integrator and simulation variables
     integrator=LangevinIntegrator(300*kelvin, 2/picosecond, 10.0*femtoseconds)
     integrator.setRandomNumberSeed(random.randint(0,1000))
@@ -330,7 +363,7 @@ def main_simulation(energy_repulsion,energy_attraction):
     simulation.reporters.append(DCDReporter('seg.dcd', 5000,enforcePeriodicBox=False))
     simulation.reporters.append(StateDataReporter('seg.csv', 5000, step=True, kineticEnergy=True, potentialEnergy=True, totalEnergy=True, temperature=True))
     #run the simulation for however many time steps
-    simulation.step(10000)
+    simulation.step(100000)
     #save final state as xml which can be used for restarting the simulation
     simulation.saveState('seg.xml')
     finalpositions = simulation.context.getState(getPositions=True).getPositions()
