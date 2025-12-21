@@ -115,7 +115,7 @@ class MDsteps():
         E0 = 0.1184 * kilojoule / mole
         scale = energy_repulsion * E0
 
-        n_points = 2000
+        n_points = 1000
         xs = np.linspace(0, r_cut/nanometer, n_points)
         table_vals = 1.0 + np.cos(np.pi * xs / xs[-1])  # xs[-1] = r_cut
         tab = Continuous1DFunction(table_vals, 0.0, xs[-1])
@@ -334,15 +334,17 @@ def main_simulation(energy_repulsion,energy_attraction):
     system.removeForce(4)
     
     #add all the forces we want: repulsive,attractive, anything else
-    mdsteps.tabulated_cosine(system,energy_repulsion)
-    mdsteps.add_gaussian_nativec(system,energy_attraction,u_system,ubound)
-    #mdsteps.gaussian_native_contactA(system,energy_attraction,u_system,ubound)
-    # mdsteps.gaussian_native_contactB(system,energy_attraction,u_system,ubound)
-    # mdsteps.gaussian_native_contactC(system,energy_attraction,u_system,ubound)
-    # mdsteps.gaussian_native_contactD(system,energy_attraction,u_system,ubound)    
+    mdsteps.add_cosine_repulsion(system,energy_repulsion)
+    #mdsteps.tabulated_cosine(system,energy_repulsion)
+
+    #mdsteps.add_gaussian_nativec(system,energy_attraction,u_system,ubound)
+    mdsteps.gaussian_native_contactA(system,energy_attraction,u_system,ubound)
+    mdsteps.gaussian_native_contactB(system,energy_attraction,u_system,ubound)
+    mdsteps.gaussian_native_contactC(system,energy_attraction,u_system,ubound)
+    mdsteps.gaussian_native_contactD(system,energy_attraction,u_system,ubound)    
     #define the integrator and simulation variables
     integrator=LangevinIntegrator(300*kelvin, 2/picosecond, 10.0*femtoseconds)
-    integrator.setRandomNumberSeed(random.randint(0,1000))
+    integrator.setRandomNumberSeed(42)
     #define platform might be useful for GPU simulations
     #platform = Platform.getPlatformByName('CUDA') 
     simulation=Simulation(mdsteps.pdb.topology, system, integrator)
