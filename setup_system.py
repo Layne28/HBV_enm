@@ -7,6 +7,10 @@ import MDAnalysis as mda
 import random
 import os 
 import pandas as pd
+
+# Cache for contact lists to avoid recomputation
+_contact_cache = {}
+
 home_dire=os.environ["WEST_SIM_ROOT"]
 def move_dimer(u,space):
     #move to (0,0,0)
@@ -119,12 +123,16 @@ def native_contact_list(m1,m2,u):
 
 
 def contact_list_new(monomer_type,monomer_num,u,ubound):
+    # Use caching to avoid recomputing the same contact lists
+    cache_key = (monomer_type, monomer_num, id(u), id(ubound))
+    if cache_key in _contact_cache:
+        return _contact_cache[cache_key]
+    
     if(monomer_type)=='A':
         if((monomer_num-1)%5==0):
             sle_string='A'+str(monomer_num+4)
         else:
             sle_string='A'+str((monomer_num-1))
-        #print(sle_string)
         sle=ubound.select_atoms('segid '+sle_string)
     if(monomer_type)=='B':
         sle=ubound.select_atoms(f"(around 9 segid B{monomer_num}) and not chainID D and not segid A{monomer_num}")
@@ -133,6 +141,7 @@ def contact_list_new(monomer_type,monomer_num,u,ubound):
     if(monomer_type)=='D':
         sle=ubound.select_atoms(f"(around 9 segid D{monomer_num}) and not chainID C and not chainID A")
     if(len(list(set(sle.segids)))==0):
+        _contact_cache[cache_key] = []
         return []
     m2=list(set(sle.segids))[0]
     m1=monomer_type+str(monomer_num)
@@ -144,18 +153,17 @@ def contact_list_new(monomer_type,monomer_num,u,ubound):
         res1=contactlist.iloc[i][1]
         sel1=['segid',m1,'and','resid',str(res1)]
         sel1=' '.join(sel1)
-        print(sel1)
+        # Removed print statements for performance
         mgroup=u.select_atoms(sel1)
         res2=contactlist.iloc[i][3]
         sel2=['segid',m2,'and','resid',str(res2)]
         sel2=' '.join(sel2)
-        print(sel2)
+        # Removed print statements for performance
         ngroup=u.select_atoms(sel2)
-        #print(mgroup.atoms)
-        print(mgroup.ids)
-        print(ngroup.ids)
         if(len(mgroup.ids)!=0 and len(ngroup.ids)!=0):
             native_contact_atoms.append((mgroup.ids[0],ngroup.ids[0]))
         else:
+            _contact_cache[cache_key] = []
             return []
-        return native_contact_atoms  
+    _contact_cache[cache_key] = native_contact_atoms
+    return native_contact_atoms  
