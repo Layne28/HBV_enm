@@ -88,10 +88,11 @@ def get_connectivity(pdb_file, cutoff):
     for i in range(pos.shape[0]-1):
         for j in range(i+1, pos.shape[0]):
             r0 = float(np.linalg.norm(pos[j] - pos[i]))
-            if r0<=cutoff:
+            if r0<=float(cutoff):
                 ind1_list.append(i+1)
                 ind2_list.append(j+1)
                 
+    #Return a numpy array of connected atom indices
     return np.c_[ind1_list,ind2_list]
                 
 
