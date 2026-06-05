@@ -1,0 +1,27 @@
+# Elastic network model of HBV dimers
+
+#Set values of some variables
+variable myseed index 12345
+variable nsteps index 100000000
+variable thermo_freq index 10000
+variable config_freq index 10000
+
+#Some other settings
+units real
+atom_style bond
+bond_style harmonic
+
+#Read in initial configuration and other data from files
+read_data dimer_data.lammps
+include dimer_data_harmonic_bond_coeffs.lammps
+
+#Set up integrator
+fix myIntegrator all nve
+fix myThermostat all langevin 300.0 300.0 1000.0 ${myseed}
+
+#Record data
+thermo ${thermo_freq}
+dump trajDump all dcd ${config_freq} traj.dcd 
+
+print "Running simulation..."
+run ${nsteps}
